@@ -111,7 +111,7 @@ class CarInterfaceBase():
       events.add(EventName.doorOpen)
     if cs_out.seatbeltUnlatched:
       events.add(EventName.seatbeltNotLatched)
-    if cs_out.gearShifter != GearShifter.drive and (extra_gears is None or
+    if cs_out.gearShifter != GearShifter.drive and s_out.gearShifter != GearShifter.brake and (extra_gears is None or
        cs_out.gearShifter not in extra_gears):
       events.add(EventName.wrongGear)
     if cs_out.gearShifter == GearShifter.reverse:
