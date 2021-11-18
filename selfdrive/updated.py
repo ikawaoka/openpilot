@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 from common.basedir import BASEDIR
+from common.markdown import parse_markdown
 from common.params import Params
 from selfdrive.hardware import EON, TICI, HARDWARE
 from selfdrive.swaglog import cloudlog
@@ -113,9 +114,11 @@ def set_params(new_version: bool, failed_count: int, exception: Optional[str]) -
   if new_version:
     try:
       with open(os.path.join(FINALIZED, "RELEASES.md"), "rb") as f:
-        r = f.read()
-      r = r[:r.find(b'\n\n')]  # Slice latest release notes
-      params.put("ReleaseNotes", r + b"\n")
+        r = f.read().split(b'\n\n', 1)[0]  # Slice latest release notes
+      try:
+        params.put("ReleaseNotes", parse_markdown(r.decode("utf-8")))
+      except Exception:
+        params.put("ReleaseNotes", r + b"\n")
     except Exception:
       params.put("ReleaseNotes", "")
     params.put_bool("UpdateAvailable", True)
@@ -223,7 +226,7 @@ def finalize_update() -> None:
   cloudlog.info("done finalizing overlay")
 
 
-def handle_agnos_update(wait_helper):
+def handle_agnos_update(wait_helper: WaitTimeHelper) -> None:
   from selfdrive.hardware.tici.agnos import flash_agnos_update, get_target_slot_number
 
   cur_version = HARDWARE.get_os_version()
@@ -282,7 +285,7 @@ def handle_neos_update(wait_helper: WaitTimeHelper) -> None:
   cloudlog.info(f"NEOS background download successful, took {time.monotonic() - start_time} seconds")
 
 
-def check_git_fetch_result(fetch_txt):
+def check_git_fetch_result(fetch_txt: str) -> bool:
   err_msg = "Failed to add the host to the list of known hosts (/data/data/com.termux/files/home/.ssh/known_hosts).\n"
   return len(fetch_txt) > 0 and (fetch_txt != err_msg)
 

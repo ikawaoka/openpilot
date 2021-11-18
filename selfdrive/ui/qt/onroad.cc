@@ -5,10 +5,10 @@
 #include "selfdrive/common/timing.h"
 #include "selfdrive/ui/paint.h"
 #include "selfdrive/ui/qt/util.h"
+#include "selfdrive/ui/qt/api.h"
 #ifdef ENABLE_MAPS
 #include "selfdrive/ui/qt/maps/map.h"
 #endif
-
 
 OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   QVBoxLayout *main_layout  = new QVBoxLayout(this);
@@ -18,7 +18,6 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   main_layout->addLayout(stacked_layout);
 
   nvg = new NvgWindow(VISION_STREAM_RGB_BACK, this);
-  QObject::connect(this, &OnroadWindow::updateStateSignal, nvg, &NvgWindow::updateState);
 
   QWidget * split_wrapper = new QWidget;
   split = new QHBoxLayout(split_wrapper);
@@ -41,24 +40,13 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
 }
 
 void OnroadWindow::updateState(const UIState &s) {
-  SubMaster &sm = *(s.sm);
   QColor bgColor = bg_colors[s.status];
-  if (sm.updated("controlsState")) {
-    const cereal::ControlsState::Reader &cs = sm["controlsState"].getControlsState();
-    alerts->updateAlert({QString::fromStdString(cs.getAlertText1()),
-                 QString::fromStdString(cs.getAlertText2()),
-                 QString::fromStdString(cs.getAlertType()),
-                 cs.getAlertSize(), cs.getAlertSound()}, bgColor);
-  } else if ((sm.frame - s.scene.started_frame) > 5 * UI_FREQ) {
-    // Handle controls timeout
-    if (sm.rcv_frame("controlsState") < s.scene.started_frame) {
-      // car is started, but controlsState hasn't been seen at all
-      alerts->updateAlert(CONTROLS_WAITING_ALERT, bgColor);
-    } else if ((nanos_since_boot() - sm.rcv_time("controlsState")) / 1e9 > CONTROLS_TIMEOUT) {
-      // car is started, but controls is lagging or died
+  Alert alert = Alert::get(*(s.sm), s.scene.started_frame);
+  if (s.sm->updated("controlsState") || !alert.equal({})) {
+    if (alert.type == "controlsUnresponsive") {
       bgColor = bg_colors[STATUS_ALERT];
-      alerts->updateAlert(CONTROLS_UNRESPONSIVE_ALERT, bgColor);
     }
+    alerts->updateAlert(alert, bgColor);
   }
   if (bg != bgColor) {
     // repaint border
@@ -79,17 +67,21 @@ void OnroadWindow::mousePressEvent(QMouseEvent* e) {
 void OnroadWindow::offroadTransition(bool offroad) {
 #ifdef ENABLE_MAPS
   if (!offroad) {
-    QString token = QString::fromStdString(Params().get("MapboxToken"));
-    if (map == nullptr && !token.isEmpty()) {
+    if (map == nullptr && (QUIState::ui_state.has_prime || !MAPBOX_TOKEN.isEmpty())) {
       QMapboxGLSettings settings;
+
+      // Valid for 4 weeks since we can't swap tokens on the fly
+      QString token = MAPBOX_TOKEN.isEmpty() ? CommaApi::create_jwt({}, 4 * 7 * 24 * 3600) : MAPBOX_TOKEN;
+
       if (!Hardware::PC()) {
         settings.setCacheDatabasePath("/data/mbgl-cache.db");
       }
+      settings.setApiBaseUrl(MAPS_HOST);
       settings.setCacheDatabaseMaximumSize(20 * 1024 * 1024);
       settings.setAccessToken(token.trimmed());
 
       MapWindow * m = new MapWindow(settings);
-      m->setFixedWidth(width() / 2 - bdr_s);
+      m->setFixedWidth(topWidget(this)->width() / 2);
       QObject::connect(this, &OnroadWindow::offroadTransitionSignal, m, &MapWindow::offroadTransition);
       split->addWidget(m, 0, Qt::AlignRight);
       map = m;
@@ -179,18 +171,7 @@ void NvgWindow::initializeGL() {
 
   ui_nvg_init(&QUIState::ui_state);
   prev_draw_t = millis_since_boot();
-}
-
-void NvgWindow::updateState(const UIState &s) {
-  // TODO: make camerad startup faster then remove this
-  if (s.scene.started) {
-    if (isVisible() != vipc_client->connected) {
-      setVisible(vipc_client->connected);
-    }
-    if (!isVisible()) {
-      updateFrame();
-    }
-  }
+  setBackgroundColor(bg_colors[STATUS_DISENGAGED]);
 }
 
 void NvgWindow::paintGL() {
@@ -204,4 +185,10 @@ void NvgWindow::paintGL() {
     LOGW("slow frame time: %.2f", dt);
   }
   prev_draw_t = cur_draw_t;
+}
+
+void NvgWindow::showEvent(QShowEvent *event) {
+  CameraViewWidget::showEvent(event);
+  ui_update_params(&QUIState::ui_state);
+  prev_draw_t = millis_since_boot();
 }
