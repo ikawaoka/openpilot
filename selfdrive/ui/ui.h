@@ -78,7 +78,7 @@ struct Alert {
         // car is started, but controls is lagging or died
         return {"TAKE CONTROL IMMEDIATELY", "Controls Unresponsive",
                 "controlsUnresponsive", cereal::ControlsState::AlertSize::FULL,
-                AudibleAlert::CHIME_WARNING_REPEAT};
+                AudibleAlert::WARNING_IMMEDIATE};
       }
     }
     return {};
@@ -188,11 +188,11 @@ private:
   // auto brightness
   const float accel_samples = 5*UI_FREQ;
 
-  bool awake;
+  bool awake = false;
   int awake_timeout = 0;
   float accel_prev = 0;
   float gyro_prev = 0;
-  float last_brightness = 0;
+  int last_brightness = 0;
   FirstOrderFilter brightness_filter;
 
   QTimer *timer;
