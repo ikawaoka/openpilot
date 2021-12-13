@@ -72,6 +72,9 @@ class Planner:
       self.v_desired = v_ego
       self.a_desired = a_ego
 
+    with open('./debug_out_v','w') as fp:
+      fp.write('v:%.2f ; vd:%.2f ; a:%.2f ; ad:%.2f' % (v_ego,self.v_desired,a_ego,self.a_desired) )
+
     # Prevent divergence, smooth in current v_ego
     self.v_desired = self.alpha * self.v_desired + (1 - self.alpha) * v_ego
     self.v_desired = max(0.0, self.v_desired)
