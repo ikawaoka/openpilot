@@ -342,7 +342,7 @@ def fetch_update(wait_helper: WaitTimeHelper) -> bool:
   new_version = cur_hash != upstream_hash
   git_fetch_result = check_git_fetch_result(git_fetch_output)
 
-  cloudlog.info("comparing %s to %s" % (cur_hash, upstream_hash))
+  cloudlog.info(f"comparing {cur_hash} to {upstream_hash}")
   if new_version or git_fetch_result:
     cloudlog.info("Running update")
 
@@ -380,7 +380,7 @@ def main():
   ov_lock_fd = open(LOCK_FILE, 'w')
   try:
     fcntl.flock(ov_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-  except IOError as e:
+  except OSError as e:
     raise RuntimeError("couldn't get overlay lock; is another instance running?") from e
 
   # Set low io priority

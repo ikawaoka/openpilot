@@ -349,7 +349,7 @@ class LongitudinalMpc():
     self.solver.cost_set(N, "yref", self.yref[N][:COST_E_DIM])
     self.accel_limit_arr[:,0] = -10.
     self.accel_limit_arr[:,1] = 10.
-    x_obstacle = 1e5*np.ones((N+1))
+    x_obstacle = 1e5*np.ones(N+1)
     self.params = np.concatenate([self.accel_limit_arr,
                              x_obstacle[:,None],
                              self.prev_a[:,None]], axis=1)
@@ -377,8 +377,7 @@ class LongitudinalMpc():
     if self.solution_status != 0:
       if t > self.last_cloudlog_t + 5.0:
         self.last_cloudlog_t = t
-        cloudlog.warning("Long mpc reset, solution_status: %s" % (
-                          self.solution_status))
+        cloudlog.warning(f"Long mpc reset, solution_status: {self.solution_status}")
       self.reset()
 
 
