@@ -11,12 +11,14 @@
 
 const QString DEMO_ROUTE = "4cf7a6ad03080c90|2021-09-29--13-46-36";
 struct termios oldt = {};
+Replay *replay = nullptr;
 
 void sigHandler(int s) {
   std::signal(s, SIG_DFL);
   if (oldt.c_lflag) {
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
   }
+  replay->stop();
   qApp->quit();
 }
 
@@ -55,6 +57,10 @@ void keyboardThread(Replay *replay_) {
         qDebug() << "invalid argument";
       }
       getch();  // remove \n from entering seek
+    } else if (c == 'e') {
+      replay_->seekToFlag(FindFlag::nextEngagement);
+    } else if (c == 'd') {
+      replay_->seekToFlag(FindFlag::nextDisEngagement);
     } else if (c == 'm') {
       replay_->seekTo(+60, true);
     } else if (c == 'M') {
@@ -65,6 +71,14 @@ void keyboardThread(Replay *replay_) {
       replay_->seekTo(-10, true);
     } else if (c == 'G') {
       replay_->seekTo(0, true);
+    } else if (c == 'x') {
+      if (replay_->hasFlag(REPLAY_FLAG_FULL_SPEED)) {
+        replay_->removeFlag(REPLAY_FLAG_FULL_SPEED);
+        qInfo() << "replay at normal speed";
+      } else {
+        replay_->addFlag(REPLAY_FLAG_FULL_SPEED);
+        qInfo() << "replay at full speed";
+      }
     } else if (c == ' ') {
       replay_->pause(!replay_->isPaused());
     }
@@ -99,6 +113,7 @@ int main(int argc, char *argv[]) {
       {"qcam", REPLAY_FLAG_QCAMERA, "load qcamera"},
       {"yuv", REPLAY_FLAG_SEND_YUV, "send yuv frame"},
       {"no-cuda", REPLAY_FLAG_NO_CUDA, "disable CUDA"},
+      {"no-vipc", REPLAY_FLAG_NO_VIPC, "do not output video"},
   };
 
   QCommandLineParser parser;
@@ -130,7 +145,7 @@ int main(int argc, char *argv[]) {
       replay_flags |= flag;
     }
   }
-  Replay *replay = new Replay(route, allow, block, nullptr, replay_flags, parser.value("data_dir"), &app);
+  replay = new Replay(route, allow, block, nullptr, replay_flags, parser.value("data_dir"), &app);
   if (!replay->load()) {
     return 0;
   }
